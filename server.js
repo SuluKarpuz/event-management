@@ -23,5 +23,6 @@ app.get("/", (req, res) => res.send("API running"));
 app.use(notFound);
 app.use(errorHandler);
 console.log("deneme");
+console.log("merhaba");
 
 app.listen(port, () => console.log(`Server started on port ${port}`));
