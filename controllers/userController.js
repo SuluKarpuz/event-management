@@ -6,7 +6,22 @@ import generateToken from "../utils/generateToken.js";
 // @route   POST /api/users/auth
 // @access  Public
 const authUser = asyncHandler(async (req, res) => {
-  res.send("auth user");
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ email });
+
+  //here we are implementing the matchPassword we get from the user schema
+  if (user && (await user.matchPassword(password))) {
+    generateToken(res, user._id);
+
+    res.status(201).json({
+      _id: user._id,
+      email: user.email,
+    });
+  } else {
+    res.status(400);
+    throw new Error("Invalid email or password");
+  }
 });
 
 // @desc    Register a new user
@@ -45,9 +60,13 @@ const registerUser = asyncHandler(async (req, res) => {
 // @desc    Logout user / clear cookie
 // @route   POST /api/users/logout
 // @access  Public
-const logoutUser = (req, res) => {
+const logoutUser = asyncHandler(async (req, res) => {
+  res.cookie("jwt", "", {
+    httpOnly: true,
+    expires: new Date(0),
+  });
   res.send("logout user");
-};
+});
 
 // @desc    Get user profile
 // @route   GET /api/users/profile
