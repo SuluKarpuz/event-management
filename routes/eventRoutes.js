@@ -16,5 +16,5 @@ router.put("/:id", protect, updateEvent); // Update the details of an existing e
 router.delete("/:id", protect, deleteEvent); // Delete an existing event
 router.get("/:id", getEventById); // Get details of an existing event by its ID
 router.get("/", getEvents); // Get a list of all existing events with optional date filter
-router.post("/events/:id/rsvp", protect, rsvpEvent); // RSVP to an event route
+router.post("/:id/rsvp", protect, rsvpEvent); // RSVP to an event route
 export default router;
