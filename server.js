@@ -5,6 +5,7 @@ import eventRoutes from "./routes/eventRoutes.js";
 import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
 import connectDB from "./config/db.js";
 import cookieParser from "cookie-parser";
+import rateLimiter from "express-rate-limit";
 
 dotenv.config();
 
@@ -13,6 +14,9 @@ const port = process.env.PORT || 5000;
 connectDB();
 
 const app = express();
+const limiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 5 });
+//Maximum 5 requests in 15 minutes
+app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
