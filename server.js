@@ -14,8 +14,8 @@ const port = process.env.PORT || 5000;
 connectDB();
 
 const app = express();
-const limiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 5 });
-//Maximum 5 requests in 15 minutes
+const limiter = rateLimiter({ windowMs: 5 * 60 * 1000, max: 10 });
+//Maximum 15 requests in 5 minutes
 app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
