@@ -1,10 +1,16 @@
 import asyncHandler from "express-async-handler";
 import Event from "../models/eventModel.js";
+import { eventValidationSchema } from "../validators/eventValidator.js";
 
 // @desc    Create a new event
 // @route   POST /api/events
 // @access  Private
 const createEvent = asyncHandler(async (req, res) => {
+  const { error } = eventValidationSchema.validate(req.body);
+  if (error) {
+    res.status(400);
+    throw new Error(error.details[0].message);
+  }
   const { name, date, location, description } = req.body;
 
   const event = await Event.create({
@@ -26,6 +32,11 @@ const createEvent = asyncHandler(async (req, res) => {
 // @route   PUT /api/events/:id
 // @access  Private
 const updateEvent = asyncHandler(async (req, res) => {
+  const { error } = eventValidationSchema.validate(req.body);
+  if (error) {
+    res.status(400);
+    throw new Error(error.details[0].message);
+  }
   const { name, date, location, description } = req.body;
 
   const event = await Event.findById(req.params.id);

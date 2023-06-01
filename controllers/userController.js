@@ -1,6 +1,7 @@
 import asyncHandler from "express-async-handler";
 import User from "../models/userModel.js";
 import generateToken from "../utils/generateToken.js";
+import { userValidationSchema } from "../validators/userValidator.js";
 
 // @desc    Auth user & get token
 // @route   POST /api/users/auth
@@ -28,6 +29,11 @@ const authUser = asyncHandler(async (req, res) => {
 // @route   POST /api/users
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
+  const { error } = userValidationSchema.validate(req.body);
+  if (error) {
+    res.status(400);
+    throw new Error(error.details[0].message);
+  }
   const { name, email, password } = req.body;
 
   const userExists = await User.findOne({ email });
@@ -84,6 +90,11 @@ const getUserProfile = asyncHandler(async (req, res) => {
 // @route   PUT /api/users/profile
 // @access  Private
 const updateUserProfile = asyncHandler(async (req, res) => {
+  const { error } = userValidationSchema.validate(req.body);
+  if (error) {
+    res.status(400);
+    throw new Error(error.details[0].message);
+  }
   const user = await User.findById(req.user._id);
 
   if (user) {
