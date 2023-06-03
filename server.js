@@ -14,8 +14,8 @@ const port = process.env.PORT || 5000;
 connectDB();
 
 const app = express();
-const limiter = rateLimiter({ windowMs: 5 * 60 * 1000, max: 10 });
-//Maximum 15 requests in 5 minutes
+const limiter = rateLimiter({ windowMs: 5 * 60 * 1000, max: 15 });
+//Maximum 20 requests in 5 minutes
 app.use(limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -29,3 +29,4 @@ app.get("/", (req, res) => res.send("API running"));
 app.use(notFound);
 app.use(errorHandler);
 app.listen(port, () => console.log(`Server started on port ${port}`));
+export default app;
