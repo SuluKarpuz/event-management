@@ -19,6 +19,9 @@ The Event Management System is a web application that provides API endpoints for
 ## Api Documentation
 - [Click here](https://documenter.getpostman.com/view/26568026/2s93sW9vT9) for documentation of the api in postman (also a collection).
 
+## Additional Information
+I used Node.js and Express to build REST APIs, MongoDB for the database, Joi for data validation, JWT for user authentication, bcrypt for password security, Mongoose for database connection, and implemented rate limiting to prevent abuse of the APIs. Additionally, I added an RSVP (Responding to Event) feature, allowing users to indicate their attendance or interest in events. This feature enhances the usability and functionality of the event management system. Postman was used for API testing throughout the development process. 
+
 
 
 ## Installation and Configuration
@@ -47,4 +50,3 @@ The Event Management System is a web application that provides API endpoints for
 ```sh
   npm test
 ```
-
