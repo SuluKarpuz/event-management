@@ -1,0 +1,536 @@
+server.js
+import express from "express";
+import dotenv from "dotenv";
+import userRoutes from "./routes/userRoutes.js";
+import eventRoutes from "./routes/eventRoutes.js";
+import { notFound, errorHandler } from "./middleware/errorMiddleware.js";
+import connectDB from "./config/db.js";
+import cookieParser from "cookie-parser";
+import rateLimiter from "express-rate-limit";
+
+dotenv.config();
+
+const port = process.env.PORT || 5000;
+
+connectDB();
+
+const app = express();
+const limiter = rateLimiter({ windowMs: 5 * 60 * 1000, max: 15 });
+//Maximum 20 requests in 5 minutes
+app.use(limiter);
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+app.use("/api/users", userRoutes);
+app.use("/api/events", eventRoutes); // Include the event routes
+
+app.get("/", (req, res) => res.send("API running"));
+
+app.use(notFound);
+app.use(errorHandler);
+app.listen(port, () => console.log(`Server started on port ${port}`));
+export default app;
+
+eventValidator.js
+import Joi from "joi";
+
+export const eventValidationSchema = Joi.object({
+  name: Joi.string().trim().required().messages({
+    "string.base": "Event name must be a string",
+    "string.empty": "Event name is required",
+  }),
+  date: Joi.date().iso().required().messages({
+    "date.base": "Event date must be a valid date",
+    "date.empty": "Event date is required",
+    "date.format": "Invalid date format. Use YYYY-MM-DD",
+  }),
+  description: Joi.string().trim().min(10).required().messages({
+    "string.base": "Event description must be a string",
+    "string.empty": "Event description is required",
+    "string.min": "Event description should have at least {#limit} words",
+  }),
+  location: Joi.string().trim().required().messages({
+    "string.base": "Event location must be a string",
+    "string.empty": "Event location is required",
+  }),
+});
+userValidator.js
+import Joi from "joi";
+
+export const userValidationSchema = Joi.object({
+  name: Joi.string().trim().required().messages({
+    "string.base": "Name must be a string",
+    "string.empty": "Name is required",
+  }),
+  email: Joi.string().trim().email().required().messages({
+    "string.base": "Email must be a string",
+    "string.empty": "Email is required",
+    "string.email": "Invalid email address",
+  }),
+  password: Joi.string().min(8).required().messages({
+    "string.base": "Password must be a string",
+    "string.empty": "Password is required",
+    "string.min": "Password should have at least {#limit} characters",
+  }),
+});
+
+userRoutes.js
+import express from "express";
+import {
+  authUser,
+  registerUser,
+  logoutUser,
+  getUserProfile,
+  updateUserProfile,
+} from "../controllers/userController.js";
+import { protect } from "../middleware/authMiddleware.js";
+
+const router = express.Router();
+
+router.post("/", registerUser);
+router.post("/auth", authUser);
+router.post("/logout", logoutUser);
+router
+  .route("/profile")
+  .get(protect, getUserProfile)
+  .put(protect, updateUserProfile);
+
+export default router;
+
+eventRoutes.js
+import express from "express";
+import {
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  getEventById,
+  getEvents,
+  rsvpEvent,
+} from "../controllers/eventController.js";
+import { protect } from "../middleware/authMiddleware.js";
+
+const router = express.Router();
+
+router.post("/", protect, createEvent); // Create a new event
+router.put("/:id", protect, updateEvent); // Update the details of an existing event
+router.delete("/:id", protect, deleteEvent); // Delete an existing event
+router.get("/:id", getEventById); // Get details of an existing event by its ID
+router.get("/", getEvents); // Get a list of all existing events with optional date filter
+router.post("/:id/rsvp", protect, rsvpEvent); // RSVP to an event route
+export default router;
+
+
+userModel.js
+import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
+
+const userSchema = mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+// Encrypt password using bcrypt
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
+    next();
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+//we are implementing the password checking here and using it as a method to userSchema
+
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
+
+const User = mongoose.model("User", userSchema);
+
+export default User;
+
+eventModel.js
+import mongoose from "mongoose";
+
+const eventSchema = mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+    date: {
+      type: Date,
+      required: true,
+    },
+    location: {
+      type: String,
+      required: true,
+    },
+    description: {
+      type: String,
+      required: true,
+    },
+    attendees: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        status: {
+          type: String,
+          enum: ["attending", "not_attending", "undecided"],
+          default: "undecided",
+        },
+      },
+    ],
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const Event = mongoose.model("Event", eventSchema);
+
+export default Event;
+authMiddleware.js
+import jwt from "jsonwebtoken";
+import asyncHandler from "express-async-handler";
+import User from "../models/userModel.js";
+
+const protect = asyncHandler(async (req, res, next) => {
+  let token = req.cookies.jwt;
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      //the reason why we use userId is in the generateToken.js
+      req.user = await User.findById(decoded.userId).select("-password");
+
+      next();
+    } catch (error) {
+      console.error(error);
+      res.status(401);
+      throw new Error("Not authorized, token failed");
+    }
+  } else {
+    res.status(401);
+    throw new Error("Not authorized, no token");
+  }
+});
+
+export { protect };
+errorMiddleware.js
+//error handler to use on routes
+const notFound = (req, res, next) => {
+  const error = new Error(`Not Found - ${req.originalUrl}`);
+  res.status(404);
+  next(error);
+};
+
+const errorHandler = (err, req, res, next) => {
+  let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  let message = err.message;
+
+  // If Mongoose not found error, set to 404 and change message
+  if (err.name === "CastError" && err.kind === "ObjectId") {
+    statusCode = 404;
+    message = "Resource not found";
+  }
+
+  res.status(statusCode).json({
+    message: message,
+    stack: process.env.NODE_ENV === "production" ? null : err.stack,
+  });
+};
+
+export { notFound, errorHandler };
+
+eventController.js
+import asyncHandler from "express-async-handler";
+import Event from "../models/eventModel.js";
+import { eventValidationSchema } from "../validators/eventValidator.js";
+
+// @desc    Create a new event
+// @route   POST /api/events
+// @access  Private
+const createEvent = asyncHandler(async (req, res) => {
+  const { error } = eventValidationSchema.validate(req.body);
+  if (error) {
+    res.status(400);
+    throw new Error(error.details[0].message);
+  }
+  const { name, date, location, description } = req.body;
+
+  const event = await Event.create({
+    name,
+    date,
+    location,
+    description,
+  });
+
+  if (event) {
+    res.status(201).json(event);
+  } else {
+    res.status(400);
+    throw new Error("Invalid event data");
+  }
+});
+
+// @desc    Update the details of an existing event
+// @route   PUT /api/events/:id
+// @access  Private
+const updateEvent = asyncHandler(async (req, res) => {
+  const { error } = eventValidationSchema.validate(req.body);
+  if (error) {
+    res.status(400);
+    throw new Error(error.details[0].message);
+  }
+  const { name, date, location, description } = req.body;
+
+  const event = await Event.findById(req.params.id);
+
+  if (event) {
+    event.name = name || event.name;
+    event.date = date || event.date;
+    event.location = location || event.location;
+    event.description = description || event.description;
+
+    const updatedEvent = await event.save();
+    res.json(updatedEvent);
+  } else {
+    res.status(404);
+    throw new Error("Event not found");
+  }
+});
+
+// @desc    Delete an existing event
+// @route   DELETE /api/events/:id
+// @access  Private
+const deleteEvent = asyncHandler(async (req, res) => {
+  const event = await Event.findById(req.params.id);
+
+  if (event) {
+    await event.deleteOne();
+    res.json({ message: "Event deleted" });
+  } else {
+    res.status(404);
+    throw new Error("Event not found");
+  }
+});
+
+// @desc    Get details of an existing event by its ID
+// @route   GET /api/events/:id
+// @access  Public
+const getEventById = asyncHandler(async (req, res) => {
+  const event = await Event.findById(req.params.id).populate("attendees.user");
+
+  if (event) {
+    res.json(event);
+  } else {
+    res.status(404);
+    throw new Error("Event not found");
+  }
+});
+
+// @desc    Get a list of all existing events with optional date filter
+// @route   GET /api/events
+// @access  Public
+const getEvents = asyncHandler(async (req, res) => {
+  const { date } = req.query;
+
+  let filter = {};
+  if (date) {
+    filter = { date: { $gte: new Date(date) } };
+  }
+
+  const events = await Event.find(filter).populate("attendees.user");
+  res.json(events);
+});
+
+const rsvpEvent = asyncHandler(async (req, res) => {
+  const event = await Event.findById(req.params.id);
+
+  if (event) {
+    const { status } = req.body;
+    const existingAttendee = event.attendees.find(
+      (attendee) => attendee.user.toString() === req.user._id.toString()
+    );
+
+    if (existingAttendee) {
+      existingAttendee.status = status;
+    } else {
+      event.attendees.push({ user: req.user._id, status });
+    }
+
+    const updatedEvent = await event.save();
+    res.json(updatedEvent);
+  } else {
+    res.status(404);
+    throw new Error("Event not found");
+  }
+});
+
+export {
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  getEventById,
+  getEvents,
+  rsvpEvent,
+};
+
+userController.js
+import asyncHandler from "express-async-handler";
+import User from "../models/userModel.js";
+import generateToken from "../utils/generateToken.js";
+import { userValidationSchema } from "../validators/userValidator.js";
+
+// @desc    Auth user & get token
+// @route   POST /api/users/auth
+// @access  Public
+const authUser = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ email });
+
+  //here we are implementing the matchPassword we get from the user schema
+  if (user && (await user.matchPassword(password))) {
+    generateToken(res, user._id);
+
+    res.status(201).json({
+      _id: user._id,
+      email: user.email,
+    });
+  } else {
+    res.status(400);
+    throw new Error("Invalid email or password");
+  }
+});
+
+// @desc    Register a new user
+// @route   POST /api/users
+// @access  Public
+const registerUser = asyncHandler(async (req, res) => {
+  const { error } = userValidationSchema.validate(req.body);
+  if (error) {
+    res.status(400);
+    throw new Error(error.details[0].message);
+  }
+  const { name, email, password } = req.body;
+
+  const userExists = await User.findOne({ email });
+
+  if (userExists) {
+    res.status(400);
+    throw new Error("User already exists");
+  }
+
+  const user = await User.create({
+    name,
+    email,
+    password,
+  });
+
+  if (user) {
+    generateToken(res, user._id);
+
+    res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+    });
+  } else {
+    res.status(400);
+    throw new Error("Invalid user data");
+  }
+});
+
+// @desc    Logout user / clear cookie
+// @route   POST /api/users/logout
+// @access  Public
+const logoutUser = asyncHandler(async (req, res) => {
+  res.cookie("jwt", "", {
+    httpOnly: true,
+    expires: new Date(0),
+  });
+  res.send("logout user");
+});
+
+// @desc    Get user profile
+// @route   GET /api/users/profile
+// @access  Private
+const getUserProfile = asyncHandler(async (req, res) => {
+  const user = {
+    _id: req.user._id,
+    name: req.user.name,
+    email: req.user.email,
+  };
+  res.status(200).json(user);
+});
+
+// @desc    Update user profile
+// @route   PUT /api/users/profile
+// @access  Private
+const updateUserProfile = asyncHandler(async (req, res) => {
+  const { error } = userValidationSchema.validate(req.body);
+  if (error) {
+    res.status(400);
+    throw new Error(error.details[0].message);
+  }
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    user.name = req.body.name || user.name;
+    user.email = req.body.email || user.email;
+
+    if (req.body.password) {
+      user.password = req.body.password;
+    }
+  }
+  const updatedUser = await user.save();
+
+  res.status(200).json({
+    _id: updatedUser._id,
+    name: updatedUser.name,
+    email: updatedUser.email,
+  });
+});
+
+export {
+  authUser,
+  registerUser,
+  logoutUser,
+  getUserProfile,
+  updateUserProfile,
+};
+
+db.js
+import mongoose from "mongoose";
+
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI);
+    console.log(`MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+export default connectDB;
