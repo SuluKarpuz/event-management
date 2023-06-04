@@ -5,8 +5,8 @@ describe("User Routes", () => {
   describe("POST /api/users", () => {
     it("should register a new user and return status 201", async () => {
       const userData = {
-        name: "John Doe",
-        email: "johndoe@example.com",
+        name: "Test User",
+        email: "testuser@example.com",
         password: "password123",
       };
 
@@ -20,8 +20,8 @@ describe("User Routes", () => {
 
     it("should return status 400 if user registration data is invalid", async () => {
       const userData = {
-        name: "John Doe",
-        email: "invalidemail", // Invalid email format
+        name: "Test User",
+        email: "testuser", // Invalid email format
         password: "password123",
       };
 
@@ -34,7 +34,7 @@ describe("User Routes", () => {
   describe("POST /api/users/login", () => {
     it("should login a registered user and return status 201 with token", async () => {
       const userData = {
-        email: "johndoe@example.com",
+        email: "testuser@example.com",
         password: "password123",
       };
 
@@ -50,7 +50,7 @@ describe("User Routes", () => {
 
     it("should return status 400 if login credentials are invalid", async () => {
       const userData = {
-        email: "johndoe@example.com",
+        email: "testuser@example.com",
         password: "invalidpassword", // Invalid password
       };
 
