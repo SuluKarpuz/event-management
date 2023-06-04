@@ -31,8 +31,7 @@ I used Node.js and Express to build REST APIs, MongoDB for the database, Joi for
 ```sh
   npm install
 ```
-3.Create a `.env` file in the project root directory.
-4. Add the following environment variables to the `.env` file:
+3.Create a `.env` file in the project root directory and add the following environment variables to the `.env` file:
 ```sh
   NODE_ENV=development
   PORT=5000
